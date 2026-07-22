@@ -112,6 +112,12 @@ h1,h2,h3{font-family:'Fraunces', serif; margin:0; color:var(--paper);}
   background:rgba(74,127,181,0.15); border:1px solid rgba(74,127,181,0.35);
   display:inline-block; padding:4px 10px; border-radius:20px; margin-bottom:12px;
 }
+.flag-btn{
+  font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--paper-dim);
+  background:transparent; border:1px solid var(--line);
+  padding:4px 10px; border-radius:20px; cursor:pointer; white-space:nowrap;
+}
+.flag-btn.flagged{color:#20140A; background:var(--ochre); border-color:var(--ochre); font-weight:600;}
 .infinitive{display:flex; align-items:baseline; gap:8px; margin-bottom:4px;}
 .infinitive .inf{font-family:'Fraunces',serif; font-size:24px; font-weight:600;}
 .infinitive .meaning{color:var(--paper-dim); font-size:14px;}

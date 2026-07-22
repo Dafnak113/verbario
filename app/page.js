@@ -6,7 +6,7 @@ import { loadProgress, saveProgress } from '../lib/progressStore';
 import { VERBS, TENSES, PERSONS, family } from '../lib/verbData';
 import {
   conjugate, ruleSentence, commonMistakeTip, analyzeMistake, pickNextItem,
-  recordAnswer, pct, levelLabel, DEFAULT_PROGRESS,
+  recordAnswer, pct, levelLabel, DEFAULT_PROGRESS, isFlagged, toggleFlagged, levelProgressInfo,
 } from '../lib/engine';
 import { buildSentence, translateWord } from '../lib/sentenceData';
 
@@ -82,6 +82,12 @@ export default function Home() {
   async function signOut() {
     await supabase.auth.signOut();
     router.push('/login');
+  }
+
+  function toggleFlagVerb(vIdx) {
+    const nextProgress = JSON.parse(JSON.stringify(progress));
+    toggleFlagged(nextProgress, vIdx);
+    persist(nextProgress);
   }
 
   function sessionTimeLeft(p) {
@@ -186,6 +192,8 @@ export default function Home() {
           onQuit={() => finishSession(practice)}
           tappedWord={tappedWord}
           setTappedWord={setTappedWord}
+          isFlagged={isFlagged(progress, currentItem.vIdx)}
+          onToggleFlag={() => toggleFlagVerb(currentItem.vIdx)}
         />
       )}
       {screen === 'exercise' && currentItem && feedback && (
@@ -201,6 +209,8 @@ export default function Home() {
 function HomeScreen({ progress, storageOk, user, onStart, onSignOut }) {
   const acc = pct(progress.totalCorrect, progress.totalAnswered);
   const levels = ['A1', 'A2', 'B1', 'B1+', 'B2', 'C1–C2'];
+  const levelInfo = levelProgressInfo(progress);
+  const flaggedCount = Object.keys(progress.flagged || {}).length;
   return (
     <>
       <div className="topbar">
@@ -226,6 +236,12 @@ function HomeScreen({ progress, storageOk, user, onStart, onSignOut }) {
           <div className="stat"><div className="num">{acc}%</div><div className="lbl">Precisión total</div></div>
           <div className="stat"><div className="num">{progress.totalAnswered}</div><div className="lbl">Respuestas</div></div>
         </div>
+        <p style={{ color: 'var(--paper-dim)', fontSize: 12.5, margin: '0 0 16px' }}>
+          {levelInfo.ready
+            ? `Precisión reciente: ${levelInfo.pct}% (últimas ${levelInfo.count}) · subes de nivel con 85%+, bajas con menos de 40%`
+            : `Responde ${levelInfo.needed} ejercicio${levelInfo.needed === 1 ? '' : 's'} más para desbloquear el progreso de nivel`}
+          {flaggedCount > 0 && ` · ${flaggedCount} verbo${flaggedCount === 1 ? '' : 's'} marcado${flaggedCount === 1 ? '' : 's'} como difícil`}
+        </p>
         <div className="card" style={{ marginTop: 6 }}>
           <h3 style={{ fontSize: 17, marginBottom: 8 }}>Sesión de hoy</h3>
           <p style={{ color: 'var(--paper-dim)', fontSize: 13.5, lineHeight: 1.5, margin: '0 0 16px' }}>
@@ -244,7 +260,7 @@ function HomeScreen({ progress, storageOk, user, onStart, onSignOut }) {
   );
 }
 
-function ExerciseScreen({ item, sentence, practice, timeLeft, answer, setAnswer, inputRef, onCheck, onQuit, tappedWord, setTappedWord }) {
+function ExerciseScreen({ item, sentence, practice, timeLeft, answer, setAnswer, inputRef, onCheck, onQuit, tappedWord, setTappedWord, isFlagged, onToggleFlag }) {
   const verb = VERBS[item.vIdx];
   const tiles = Array.from({ length: SESSION_MAX_Q }, (_, i) => {
     if (i < practice.count) return 'done';
@@ -288,7 +304,17 @@ function ExerciseScreen({ item, sentence, practice, timeLeft, answer, setAnswer,
       </div>
       <div className="screen">
         <div className="card">
-          <span className="tense-tag">{TENSES[item.tense].label}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span className="tense-tag">{TENSES[item.tense].label}</span>
+            <button
+              type="button"
+              className={`flag-btn ${isFlagged ? 'flagged' : ''}`}
+              onClick={onToggleFlag}
+              title={isFlagged ? 'Quitar de "necesita más práctica"' : 'Marcar: necesito más práctica con este verbo'}
+            >
+              {isFlagged ? '★ Difícil' : '☆ Marcar difícil'}
+            </button>
+          </div>
           <div className="infinitive">
             <span className="inf">{verb.inf}</span>
             <span className="meaning">{verb.meaning}</span>
@@ -371,6 +397,18 @@ function FeedbackScreen({ item, sentence, feedback, onContinue }) {
         )}
 
         <div className="explain-block">
+          <h4>Conjugación completa - {verb.inf} - {TENSES[item.tense].label}</h4>
+          <table className="conj"><tbody>
+            {PERSONS.map((p, i) => (
+              <tr key={p} className={i === item.personIdx ? 'target' : ''}>
+                <td className="person">{p}</td>
+                <td className="form">{conjugate(verb, item.tense, i)}</td>
+              </tr>
+            ))}
+          </tbody></table>
+        </div>
+
+        <div className="explain-block">
           <h4>Por qué</h4>
           <p>{rule}</p>
           {irregularApplies && <p style={{ marginTop: 8 }}>{verb.note}</p>}
@@ -386,18 +424,6 @@ function FeedbackScreen({ item, sentence, feedback, onContinue }) {
           <div className="mnemonic-note" style={{ borderLeftColor: 'var(--terracotta)', background: 'rgba(193,80,46,0.10)' }}>
             <p><b>⚠️ Error común en este tiempo:</b> {tip}</p>
           </div>
-        </div>
-
-        <div className="explain-block">
-          <h4>Conjugación completa — {TENSES[item.tense].label}</h4>
-          <table className="conj"><tbody>
-            {PERSONS.map((p, i) => (
-              <tr key={p} className={i === item.personIdx ? 'target' : ''}>
-                <td className="person">{p}</td>
-                <td className="form">{conjugate(verb, item.tense, i)}</td>
-              </tr>
-            ))}
-          </tbody></table>
         </div>
 
         <button className="btn btn-primary" onClick={onContinue}>Continuar</button>
